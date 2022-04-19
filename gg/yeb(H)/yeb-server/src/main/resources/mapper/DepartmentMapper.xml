@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhouyue.server.mapper.DepartmentMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.zhouyue.server.pojo.Department">
+        <id column="id" property="id" />
+        <result column="name" property="name" />
+        <result column="parentId" property="parentId" />
+        <result column="depPath" property="depPath" />
+        <result column="enabled" property="enabled" />
+        <result column="isParent" property="isParent" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, name, parentId, depPath, enabled, isParent
+    </sql>
+
+    <!--获取所有部门-->
+    <!--
+    我们在设置子部门属性时使用了递归，在其中使用 select 属性，并调用 getAllDepartment 查询方法，由于要传入参数，因此参数就为前面查询出的部门的id
+    这样递归的思路就是：首先通过传入的 -1 参数，查出第一级部门，将第一级部门的 id 作为参数，即 column="id"，查询第一级部门下的所有子部门，
+    再将所有子部门的 id 依次传入递归，查询他们的子部门.....，直到查询出的所有子部门都没有子部门为止
+    -->
+    <resultMap id="DepartmentWithChildren" type="com.zhouyue.server.pojo.Department" extends="BaseResultMap">
+        <collection property="children" ofType="com.zhouyue.server.pojo.Department"
+                    select="com.zhouyue.server.mapper.DepartmentMapper.getAllDepartment" column="id">
+
+        </collection>
+    </resultMap>
+    <!--
+    这个方法是根据传入的 parentId 查询出该部门，因为我们的第一级别部门是不存在父部门的，即他的 parentId 是 -1，因此在执行该 sql 传入的参数是 -1
+    这个 -1 是在 DepartmentServiceImpl 中进行传入的
+    -->
+    <select id="getAllDepartment" resultMap="DepartmentWithChildren">
+        SELECT
+        <include refid="Base_Column_List"></include>
+        FROM t_department
+        WHERE parentId = #{parentId}
+    </select>
+
+    <!--添加部门-->
+    <!--设置 statementType="CALLABLE" 作用是设置当前是去调用存储过程-->
+    <select id="addDepartment" statementType="CALLABLE">
+            <!--
+             里面设置的是参数由于使用的 mybatis 因此可以直接用类属性名 name 表示 传入部门类的名字
+             mode 表示是输入还是输出参数 IN 表示输入
+             jdbcType 表示参数类型
+             -->
+        call addDep(#{name,mode=IN,jdbcType=VARCHAR},#{parentId,mode=IN,jdbcType=INTEGER},#{enabled,mode=IN,jdbcType=BOOLEAN},
+            #{result,mode=OUT,jdbcType=INTEGER},#{id,mode=OUT,jdbcType=INTEGER})
+    </select>
+
+    <!--删除部门-->
+    <select id="deleteDepartment" statementType="CALLABLE">
+        call deleteDep(#{id,mode=IN,jdbcType=INTEGER},#{result,mode=OUT,jdbcType=INTEGER})
+    </select>
+</mapper>
